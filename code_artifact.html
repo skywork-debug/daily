@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>公司值日生智慧排班系統</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    /* 條紋背景用於非工作日 */
+    .stripes-bg {
+      background-image: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 10px, #f1f5f9 10px, #f1f5f9 20px);
+    }
+    /* 國定假日專用淡紅條紋背景 */
+    .holiday-stripes-bg {
+      background-image: repeating-linear-gradient(45deg, #fff5f5, #fff5f5 10px, #ffe4e6 10px, #ffe4e6 20px);
+    }
+    /* 公司自訂補休/放假專用淡紫條紋背景 */
+    .custom-holiday-stripes-bg {
+      background-image: repeating-linear-gradient(45deg, #f5f3ff, #f5f3ff 10px, #ede9fe 10px, #ede9fe 20px);
+    }
+    [v-cloak] {
+      display: none !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 antialiased">
+
+  <div id="app" class="p-3 md:p-6 max-w-7xl mx-auto" v-cloak>
+    
+    <header class="mb-6 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
+          <i class="fa-solid fa-calendar-days text-xl animate-pulse"></i>
+        </div>
+        <div>
+          <h1 class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">智慧值日生排班系統</h1>
+          <p class="text-xs md:text-sm text-slate-500 flex items-center gap-1.5 mt-0.5">
+            <span class="inline-block w-2.5 h-2.5 rounded-full" :class="syncStatusClass"></span>
+            {{ syncStatusText }}
+          </p>
+        </div>
+      </div>
+      
+      <div class="flex flex-wrap gap-2 w-full md:w-auto justify-end">
+        <button @click="showInfoModal = true" class="px-3.5 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition duration-200 flex items-center gap-2">
+          <i class="fa-solid fa-circle-question"></i> 使用說明
+        </button>
+        <button @click="openQuickScheduleModal" class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-sm shadow-indigo-100 transition duration-200 flex items-center gap-2">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> 重新一鍵自動排班
+        </button>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <aside class="lg:col-span-4 space-y-6">
+        
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-bold text-slate-900 flex items-center gap-2 text-lg">
+              <i class="fa-solid fa-users text-indigo-500"></i> 員工名冊
+              <span class="bg-slate-100 text-slate-600 text-xs px-2.5 py-0.5 rounded-full font-semibold">{{ employees.length }} 人</span>
+            </h2>
+          </div>
+
+          <form @submit.prevent="addEmployee" class="space-y-3 mb-5 p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <div class="grid grid-cols-3 gap-2">
+              <div class="col-span-1">
+                <label class="block text-xs font-semibold text-slate-500 mb-1">編號</label>
+                <input v-model="newEmpCode" type="text" placeholder="例如: 01" required maxlength="5"
+                       class="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+              </div>
+              <div class="col-span-2">
+                <label class="block text-xs font-semibold text-slate-500 mb-1">姓名</label>
+                <input v-model="newEmpName" type="text" placeholder="姓名" required
+                       class="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+              </div>
+            </div>
+            <button type="submit" :disabled="submitting"
+                    class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition duration-200 shadow-sm flex items-center justify-center gap-2 disabled:opacity-50">
+              <i class="fa-solid fa-plus"></i> 新增員工
+            </button>
+          </form>
+
+          <div class="max-h-[220px] overflow-y-auto custom-scrollbar space-y-2 pr-1">
+            <div v-if="employees.length === 0" class="text-center py-8 text-slate-400 text-sm">
+              <i class="fa-solid fa-user-slash text-2xl mb-2 block"></i>
+              目前暫無員工，請先新增
+            </div>
+            <div v-for="emp in sortedEmployees" :key="emp.id" 
+                 class="group flex justify-between items-center p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl transition duration-150 shadow-xs">
+              <div class="flex items-center gap-3">
+                <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 font-bold text-xs flex items-center justify-center border border-indigo-100">
+                  {{ emp.code }}
+                </span>
+                <span class="font-medium text-slate-800">{{ emp.name }}</span>
+              </div>
+              <button @click="confirmDeleteEmployee(emp)" class="opacity-0 group-hover:opacity-100 p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition duration-150" title="刪除員工">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-bold text-slate-900 flex items-center gap-2 text-lg">
+              <i class="fa-solid fa-business-time text-purple-500"></i> 自訂補休與事件
+              <span class="bg-purple-50 text-purple-600 text-xs px-2.5 py-0.5 rounded-full font-semibold">{{ Object.keys(customEvents).length }} 天</span>
+            </h2>
+          </div>
+
+          <form @submit.prevent="addCustomEvent" class="space-y-3 mb-5 p-3 bg-purple-50/30 rounded-xl border border-purple-100/50">
+            <div class="grid grid-cols-1 gap-2">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">補休/事件日期</label>
+                <input v-model="newEventDate" type="date" required
+                       class="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">補休假/事件名稱</label>
+                <input v-model="newEventTitle" type="text" placeholder="例如：週末加班補休" required
+                       class="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition">
+              </div>
+            </div>
+            <button type="submit" 
+                    class="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition duration-200 shadow-sm flex items-center justify-center gap-2">
+              <i class="fa-solid fa-calendar-plus"></i> 新增公司補休天
+            </button>
+          </form>
+
+          <div class="max-h-[180px] overflow-y-auto custom-scrollbar space-y-2 pr-1">
+            <div v-if="Object.keys(customEvents).length === 0" class="text-center py-6 text-slate-400 text-sm">
+              <i class="fa-solid fa-calendar-xmark text-xl mb-1.5 block text-purple-300"></i>
+              目前無自訂補休，平日正常值日
+            </div>
+            <div v-for="(title, dateStr) in sortedCustomEvents" :key="dateStr" 
+                 class="group flex justify-between items-center p-2.5 bg-white hover:bg-purple-50/20 border border-slate-150 rounded-xl transition duration-150">
+              <div class="flex flex-col">
+                <span class="text-xs font-bold text-purple-600">{{ dateStr }}</span>
+                <span class="text-xs font-medium text-slate-700 truncate max-w-[150px]">{{ title }}</span>
+              </div>
+              <button @click="confirmDeleteCustomEvent(dateStr)" class="opacity-0 group-hover:opacity-100 p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition" title="刪除補休">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+          <h2 class="font-bold text-slate-900 mb-4 flex items-center gap-2 text-lg">
+            <i class="fa-solid fa-sliders text-indigo-500"></i> 排班規則設定
+          </h2>
+          <div class="space-y-4">
+            <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div>
+                <span class="block text-sm font-semibold text-slate-800">排除週末 (週六/週日)</span>
+                <span class="text-xs text-slate-400">開啟後週末不排值日生</span>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="settings.skipWeekends" @change="saveSettings" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div>
+                <span class="block text-sm font-semibold text-slate-800">排除國定假日 (見紅就休)</span>
+                <span class="text-xs text-slate-400">自動識別並跳過春節、端午等</span>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="settings.skipHolidays" @change="saveSettings" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+            
+            <div class="bg-amber-50 rounded-xl p-3 border border-amber-100 text-xs text-amber-800 space-y-1">
+              <div class="font-semibold flex items-center gap-1">
+                <i class="fa-solid fa-circle-info"></i> 自動插補運算說明
+              </div>
+              <p>不論是新增員工還是自訂補休放假，系統都會在未來未來的空白天數中自動依序遞補並智慧跳過國定假日、週末與您自訂的補休，完美銜接。</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="lg:col-span-8 space-y-6">
+        
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div class="flex items-center gap-3">
+            <button @click="changeMonth(-1)" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 transition duration-150">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <h2 class="text-lg md:text-xl font-bold text-slate-900 min-w-[120px] text-center">
+              {{ currentYear }} 年 {{ currentMonth + 1 }} 月
+            </h2>
+            <button @click="changeMonth(1)" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 transition duration-150">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button @click="goToToday" class="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 transition duration-150">
+              今天
+            </button>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <span v-if="selectedSwapDate" class="animate-pulse bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+              點選另一天以進行調班...
+              <button @click="selectedSwapDate = null" class="hover:text-blue-900 ml-1">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </span>
+            <div class="flex rounded-lg bg-slate-100 p-1">
+              <button @click="viewMode = 'calendar'" :class="viewMode === 'calendar' ? 'bg-white shadow-xs text-indigo-600 font-semibold' : 'text-slate-500 hover:text-slate-800'" class="px-3 py-1.5 text-xs rounded-md transition">
+                月曆視圖
+              </button>
+              <button @click="viewMode === 'list' ? '' : viewMode = 'list'" :class="viewMode === 'list' ? 'bg-white shadow-xs text-indigo-600 font-semibold' : 'text-slate-500 hover:text-slate-800'" class="px-3 py-1.5 text-xs rounded-md transition">
+                清單視圖
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-show="viewMode === 'calendar'" class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          
+          <div class="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
+            <div v-for="w in ['日', '一', '二', '三', '四', '五', '六']" :key="w" class="py-3 text-center text-xs font-semibold text-slate-500">
+              週{{ w }}
+            </div>
+          </div>
+
+          <div class="grid grid-cols-7 auto-rows-[125px] md:auto-rows-[140px]">
+            <div v-for="empty in calendarPrePadding" :key="'pre-' + empty" class="bg-slate-50/20 border-r border-b border-slate-100"></div>
+
+            <div v-for="day in calendarDays" :key="day.dateStr" 
+                 @dragover.prevent="onDragOver"
+                 @drop="onDrop($event, day.dateStr)"
+                 class="relative border-r border-b border-slate-100 p-1.5 flex flex-col justify-between transition duration-200"
+                 :class="[
+                   day.isToday ? 'bg-indigo-50/20' : '',
+                   day.isCustomHoliday ? 'custom-holiday-stripes-bg' : (day.isHoliday && settings.skipHolidays ? 'holiday-stripes-bg' : (day.isWeekend && settings.skipWeekends ? 'stripes-bg' : 'bg-white'))
+                 ]">
+              
+              <div class="flex justify-between items-start">
+                <span :class="[
+                  'text-xs md:text-sm font-bold rounded-full w-6 h-6 flex items-center justify-center',
+                  day.isToday ? 'bg-indigo-600 text-white' : (day.isCustomHoliday ? 'text-purple-600 bg-purple-50' : (day.isHoliday && settings.skipHolidays ? 'text-rose-600 bg-rose-50' : (day.isWeekend ? 'text-rose-500' : 'text-slate-600')))
+                ]">
+                  {{ day.dayNum }}
+                </span>
+                
+                <div class="flex flex-col items-end gap-1">
+                  <span v-if="day.isToday" class="text-[9px] font-bold text-indigo-600 bg-indigo-100 px-1 py-0.2 rounded">今天</span>
+                  <span v-if="day.isCustomHoliday" class="text-[9px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded truncate max-w-[65px] md:max-w-[90px]" :title="day.customHolidayName">
+                    補休：{{ day.customHolidayName }}
+                  </span>
+                  <span v-else-if="day.isHoliday" class="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded truncate max-w-[55px] md:max-w-[80px]" :title="day.holidayName">
+                    {{ day.holidayName }}
+                  </span>
+                  <span v-else-if="day.isWeekend && !settings.skipWeekends" class="text-[9px] font-bold text-slate-400 bg-slate-100 px-1 rounded">假日</span>
+                </div>
+              </div>
+
+              <div class="flex-1 flex flex-col justify-end mt-1">
+                
+                <div v-if="day.isCustomHoliday || (day.isWeekend && settings.skipWeekends) || (day.isHoliday && settings.skipHolidays)" class="text-center py-2 text-xs font-medium">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]"
+                        :class="day.isCustomHoliday ? 'text-purple-600 bg-purple-50/80 border border-purple-100' : (day.isHoliday && settings.skipHolidays ? 'text-rose-600 bg-rose-50/80 border border-rose-100' : 'text-slate-400 bg-slate-100/80')">
+                    <i class="fa-solid fa-mug-hot"></i> {{ day.isCustomHoliday ? '放假補休' : (day.isHoliday && settings.skipHolidays ? '放假日' : '休息日') }}
+                  </span>
+                </div>
+
+                <div v-else>
+                  <div v-if="day.assigned" 
+                       draggable="true"
+                       @dragstart="onDragStart($event, day.dateStr)"
+                       @click="handleCardClick(day.dateStr)"
+                       :class="[
+                         'group relative rounded-xl p-2 transition cursor-grab active:cursor-grabbing text-left select-none border shadow-xs',
+                         day.assigned.isSwapped 
+                           ? 'bg-amber-50 border-amber-300 text-amber-900 hover:shadow-md' 
+                           : 'bg-indigo-50/40 hover:bg-indigo-50 border-slate-150 hover:border-indigo-200 text-slate-800 hover:shadow-sm',
+                         selectedSwapDate === day.dateStr ? 'ring-2 ring-blue-500 bg-blue-50/50 border-blue-400' : ''
+                       ]">
+                    
+                    <div v-if="day.assigned.isSwapped" class="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[8px] font-black px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow-xs">
+                      調
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                      <span :class="[
+                        'w-5 h-5 rounded text-[10px] font-extrabold flex items-center justify-center border',
+                        day.assigned.isSwapped ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-slate-100 border-slate-200 text-slate-600'
+                      ]">
+                        {{ day.assigned.code }}
+                      </span>
+                      <span class="text-xs font-bold truncate block flex-1">{{ day.assigned.name }}</span>
+                    </div>
+
+                    <div class="absolute inset-0 bg-white/95 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 px-2 transition duration-150 border border-slate-200 shadow-sm" @click.stop>
+                      <button @click="openSingleDateEdit(day)" class="p-1 text-slate-500 hover:text-indigo-600 text-xs font-medium rounded hover:bg-slate-100" title="自訂更換值日生">
+                        更換
+                      </button>
+                      <button v-if="day.assigned.isSwapped" @click="resetDuty(day.dateStr)" class="p-1 text-amber-600 hover:text-amber-800 text-xs font-medium rounded hover:bg-amber-100" title="還原至自動排班">
+                        還原
+                      </button>
+                    </div>
+
+                  </div>
+
+                  <div v-else class="text-center py-2">
+                    <button @click="quickAssign(day.dateStr)" class="text-[10px] text-slate-400 hover:text-indigo-600 border border-dashed border-slate-200 hover:border-indigo-300 rounded-lg px-2 py-1 transition duration-150">
+                      <i class="fa-solid fa-plus"></i> 指派
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div v-show="viewMode === 'list'" class="space-y-3">
+          <div v-for="day in calendarDays" :key="'list-' + day.dateStr" 
+               class="bg-white rounded-xl border border-slate-100 p-4 shadow-xs flex justify-between items-center gap-4 hover:shadow-sm transition"
+               :class="[
+                 day.isToday ? 'ring-1 ring-indigo-500 bg-indigo-50/5' : '',
+                 day.isCustomHoliday || (day.isWeekend && settings.skipWeekends) || (day.isHoliday && settings.skipHolidays) ? 'opacity-60 bg-slate-50/50' : ''
+               ]">
+            <div class="flex items-center gap-4">
+              <div class="text-center min-w-[50px]">
+                <span class="block text-xs text-slate-400 font-semibold">{{ day.weekDayName }}</span>
+                <span :class="[
+                  'text-lg font-bold block rounded-full w-8 h-8 flex items-center justify-center mx-auto mt-0.5',
+                  day.isToday ? 'bg-indigo-600 text-white' : (day.isCustomHoliday ? 'bg-purple-600 text-white' : (day.isHoliday && settings.skipHolidays ? 'text-rose-600 bg-rose-50' : 'text-slate-700 bg-slate-100'))
+                ]">{{ day.dayNum }}</span>
+              </div>
+
+              <div>
+                <div v-if="day.isCustomHoliday" class="text-sm font-semibold text-purple-600 flex items-center gap-1.5">
+                  <i class="fa-solid fa-mug-hot"></i> 公司自訂補休 ({{ day.customHolidayName }})
+                </div>
+                <div v-else-if="day.isHoliday && settings.skipHolidays" class="text-sm font-semibold text-rose-600 flex items-center gap-1.5">
+                  <i class="fa-solid fa-mug-hot"></i> 國定放假 ({{ day.holidayName }})
+                </div>
+                <div v-else-if="day.isWeekend && settings.skipWeekends" class="text-sm font-medium text-slate-400">
+                  <i class="fa-solid fa-mug-hot"></i> 週末休息
+                </div>
+                <div v-else-if="day.assigned" class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 text-xs font-bold rounded bg-slate-100 text-slate-600 border border-slate-200">
+                    編號 {{ day.assigned.code }}
+                  </span>
+                  <span class="font-bold text-slate-800">{{ day.assigned.name }}</span>
+                  <span v-if="day.assigned.isSwapped" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                    <i class="fa-solid fa-clock-rotate-left"></i> 手動改班
+                  </span>
+                </div>
+                <div v-else class="text-sm text-slate-400">
+                  尚未安排值日生
+                </div>
+              </div>
+            </div>
+
+            <div v-if="!(day.isCustomHoliday || (day.isWeekend && settings.skipWeekends) || (day.isHoliday && settings.skipHolidays))" class="flex gap-2">
+              <button @click="openSingleDateEdit(day)" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-slate-100 border border-slate-150 rounded-lg transition">
+                自訂更換
+              </button>
+              <button v-if="day.assigned && day.assigned.isSwapped" @click="resetDuty(day.dateStr)" class="px-3 py-1.5 text-xs font-medium text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition">
+                恢復自動
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <div v-if="showQuickScheduleModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-wand-magic-sparkles text-indigo-500"></i> 一鍵智慧自動排班
+        </h3>
+        <p class="text-sm text-slate-500">
+          系統將清除您自選期間後的自動排班，並根據「員工編號排序」依序填充。您已進行的「調班覆寫」將預設保留，也可以選擇一併清除。
+        </p>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 mb-1">開始日期</label>
+            <input v-model="quickRosterStart" type="date" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 mb-1">起始輪值員工</label>
+            <select v-model="quickRosterEmpId" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+              <option value="">-- 由編號最小的員工開始 --</option>
+              <option v-for="emp in sortedEmployees" :key="emp.id" :value="emp.id">
+                [{{ emp.code }}] {{ emp.name }}
+              </option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2 pt-2">
+            <input type="checkbox" v-model="clearAllOverrides" id="clearOverrides" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            <label for="clearOverrides" class="text-xs font-semibold text-slate-600 cursor-pointer">同時清空過去已手動調班的紀錄 (全部還原自動)</label>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button @click="showQuickScheduleModal = false" class="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition">
+            取消
+          </button>
+          <button @click="executeQuickRoster" class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-sm transition">
+            開始排程 (45天)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showSingleEditModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100 space-y-4">
+        <h3 class="text-lg font-bold text-slate-900">
+          指派值日生：{{ singleEditDate }}
+        </h3>
+        <p class="text-xs text-slate-500">
+          此處指派將視為「手動改班」，卡片會變成琥珀色。您可以隨時點選「還原」恢復自動排序。
+        </p>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">選擇值日生</label>
+          <select v-model="singleEditEmpId" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+            <option value="">-- 未指派 --</option>
+            <option v-for="emp in sortedEmployees" :key="emp.id" :value="emp.id">
+              [{{ emp.code }}] {{ emp.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button @click="showSingleEditModal = false" class="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition">
+            取消
+          </button>
+          <button @click="saveSingleDuty" class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-sm transition">
+            儲存變更
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showInfoModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-circle-question text-indigo-500"></i> 智慧排班指南
+        </h3>
+        <div class="text-sm text-slate-600 space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+          <p class="font-bold text-slate-800">1. 多人同步與自動更新</p>
+          <p class="pl-3 border-l-2 border-indigo-200">此系統已連線至雲端即時資料庫。不論有多少位同仁同時在不同電腦、手機上修改，所有人畫面都會即時更新同步，無須手動重新整理。</p>
+
+          <p class="font-bold text-slate-800">2. 自訂補休放假順延</p>
+          <p class="pl-3 border-l-2 border-indigo-200">若有週末活動而平日需要補休，可在左側新增自訂補休。系統會自動跳過該補休天，不排班，且<b>排班值日生順序自動往後順延一天</b>，完全不影響原訂的同仁公平性。</p>
+
+          <p class="font-bold text-slate-800">3. 新增員工與插補</p>
+          <p class="pl-3 border-l-2 border-indigo-200">系統會依照「員工編號」由小到大循環排班。新增 `09` 員工時，系統偵測到前一日是 `07`，則會自動安排 `09` 在下一值日天上班，之後自動接續為 `01`，保證排班不紊亂。
+          </p>
+
+          <p class="font-bold text-slate-800">4. 拖拽調班與手機操作</p>
+          <p class="pl-3 border-l-2 border-indigo-200">
+            <strong>電腦拖拽：</strong>按住日期卡片，拖曳至另一天放下，兩日的值日生便會互換。
+            <br><strong>手機點擊：</strong>點選要請假的卡片 (呈現藍色外框)，再點選預備交換日期的卡片，即完成調班。
+            <br>調班後的日期，卡片自動變成暖橘色並標示「已調班」。
+          </p>
+        </div>
+
+        <div class="flex justify-end pt-2">
+          <button @click="showInfoModal = false" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition shadow-sm">
+            我明白了
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="confirmModal.show" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100 space-y-4 animate-in fade-in duration-200">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-500"></i> {{ confirmModal.title }}
+        </h3>
+        <p class="text-sm text-slate-500 leading-relaxed">{{ confirmModal.message }}</p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button @click="confirmModal.show = false" class="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition">
+            取消
+          </button>
+          <button @click="triggerConfirmAction" class="px-4 py-2 text-sm bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl shadow-sm transition">
+            確認執行
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fixed bottom-5 right-5 space-y-2 z-50">
+      <transition-group enter-active-class="transform ease-out duration-300 transition"
+                        enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+                        enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+                        leave-active-class="transition ease-in duration-200"
+                        leave-from-class="opacity-100"
+                        leave-to-class="opacity-0">
+        <div v-for="toast in toasts" :key="toast.id" 
+             :class="toast.type === 'error' ? 'bg-rose-600 text-white' : (toast.type === 'purple' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-white')"
+             class="p-4 rounded-xl shadow-lg text-sm flex items-center gap-3 min-w-[250px] max-w-sm">
+          <i :class="toast.type === 'error' ? 'fa-solid fa-triangle-exclamation text-rose-200' : 'fa-solid fa-circle-check text-indigo-300'"></i>
+          <span class="flex-1 font-medium">{{ toast.message }}</span>
+          <button @click="removeToast(toast.id)" class="text-white/60 hover:text-white">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </transition-group>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, collection, query, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // 國定假日對照表 (見紅就休)
+    const TAIWAN_HOLIDAYS = {
+      // 2026 國定假日與連假補假
+      "2026-01-01": "元旦",
+      "2026-02-14": "春節連假",
+      "2026-02-15": "春節連假(小年夜)",
+      "2026-02-16": "除夕",
+      "2026-02-17": "初一",
+      "2026-02-18": "初二",
+      "2026-02-19": "初三",
+      "2026-02-20": "初四",
+      "2026-02-21": "初五",
+      "2026-02-22": "春節連假",
+      "2026-02-27": "和平紀念日補假",
+      "2026-02-28": "和平紀念日",
+      "2026-03-01": "和平紀念日放假",
+      "2026-04-03": "兒童節補假",
+      "2026-04-04": "兒童節",
+      "2026-04-05": "清明節",
+      "2026-04-06": "清明節補假",
+      "2026-05-01": "勞動節",
+      "2026-06-19": "端午節",
+      "2026-06-20": "端午節假期",
+      "2026-06-21": "端午節假期",
+      "2026-09-25": "中秋節",
+      "2026-09-26": "中秋節假期",
+      "2026-09-27": "中秋節假期",
+      "2026-09-28": "教師節",
+      "2026-10-09": "國慶日補假",
+      "2026-10-10": "國慶日",
+      "2026-10-11": "國慶日假期",
+      "2026-10-24": "光復節假期",
+      "2026-10-25": "光復節",
+      "2026-10-26": "光復節補假",
+      "2026-12-25": "行憲紀念日",
+      "2026-12-26": "行憲紀念日假期",
+      "2026-12-27": "行憲紀念日假期",
+
+      // 2025 年國定假日
+      "2025-01-01": "元旦",
+      "2025-01-25": "春節連假", "2025-01-26": "春節連假", "2025-01-27": "春節除夕前天", "2025-01-28": "除夕",
+      "2025-01-29": "初一", "2025-01-30": "初二", "2025-01-31": "初三", "2025-02-01": "初四", "2025-02-02": "初五",
+      "2025-02-28": "和平紀念日",
+      "2025-04-03": "兒童節補假", "2025-04-04": "兒童節", "2025-04-05": "清明節", "2025-04-07": "清明節補假",
+      "2025-05-01": "勞動節",
+      "2025-05-31": "端午節",
+      "2025-10-06": "中秋節",
+      "2025-10-10": "國慶日",
+      "2025-10-24": "光復節補假", "2025-10-25": "光復節",
+      "2025-12-25": "行憲紀念日"
+    };
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'duty-roster-company-v1';
+    
+    // 🌟 這裡已經換成你的專屬金鑰了！
+    const firebaseConfig = {
+      apiKey: "AIzaSyD_11R-SJuurMgmeKHmf1YF-1lHOGdmM8Y",
+      authDomain: "daily-1e4db.firebaseapp.com",
+      projectId: "daily-1e4db",
+      storageBucket: "daily-1e4db.firebasestorage.app",
+      messagingSenderId: "906539079147",
+      appId: "1:906539079147:web:f01df0ef4f4fc818c375ae"
+    };
+
+    // 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Vue3 應用
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        // --- 狀態宣告 ---
+        const employees = ref([]);
+        const scheduleMap = ref({});
+        const customEvents = ref({}); // 自訂補休對照表 { "YYYY-MM-DD": "活動名稱" }
+        const settings = ref({ skipWeekends: true, skipHolidays: true });
+        
+        const currentYear = ref(new Date().getFullYear());
+        const currentMonth = ref(new Date().getMonth()); // 0-11
+        const viewMode = ref('calendar'); // 'calendar' or 'list'
+
+        const newEmpCode = ref('');
+        const newEmpName = ref('');
+        const newEventDate = ref('');
+        const newEventTitle = ref('');
+        
+        const submitting = ref(false);
+        const connectionState = ref('connecting'); // 'connecting', 'connected', 'error'
+        const toasts = ref([]);
+
+        // 拖拽與選取調班
+        const dragSourceDate = ref(null);
+        const selectedSwapDate = ref(null);
+
+        // 模態框狀態
+        const showQuickScheduleModal = ref(false);
+        const showSingleEditModal = ref(false);
+        const showInfoModal = ref(false);
+
+        // 統一自訂確認對話框
+        const confirmModal = ref({
+          show: false,
+          title: '',
+          message: '',
+          action: null
+        });
+        
+        const quickRosterStart = ref(new Date().toISOString().split('T')[0]);
+        const quickRosterEmpId = ref('');
+        const clearAllOverrides = ref(false);
+
+        const singleEditDate = ref('');
+        const singleEditEmpId = ref('');
+
+        // --- Toast 管理 ---
+        const showToast = (message, type = 'info') => {
+          const id = Date.now() + Math.random();
+          toasts.value.push({ id, message, type });
+          setTimeout(() => removeToast(id), 4000);
+        };
+
+        const removeToast = (id) => {
+          toasts.value = toasts.value.filter(t => t.id !== id);
+        };
+
+        // --- 客製化確認彈窗管理 ---
+        const openConfirm = (title, message, action) => {
+          confirmModal.value = {
+            show: true,
+            title,
+            message,
+            action
+          };
+        };
+
+        const triggerConfirmAction = () => {
+          if (confirmModal.value.action) {
+            confirmModal.value.action();
+          }
+          confirmModal.value.show = false;
+        };
+
+        // --- 雲端連線與監聽路徑 ---
+        onMounted(async () => {
+          try {
+            connectionState.value = 'connecting';
+
+            // 監聽員工清單
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'employees'), (snapshot) => {
+              employees.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              connectionState.value = 'connected';
+            }, (err) => {
+              console.error("員工監聽錯誤:", err);
+              connectionState.value = 'error';
+              showToast("員工清單同步錯誤", "error");
+            });
+
+            // 監聽自訂事件與補休
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'events'), (snapshot) => {
+              const mapping = {};
+              snapshot.docs.forEach(doc => {
+                mapping[doc.id] = doc.data().title;
+              });
+              customEvents.value = mapping;
+            }, (err) => {
+              console.error("自訂事件監聽錯誤:", err);
+              showToast("補休事件載入失敗", "error");
+            });
+
+            // 監聽排班日程
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'schedule'), (snapshot) => {
+              const mapping = {};
+              snapshot.docs.forEach(doc => {
+                mapping[doc.id] = doc.data();
+              });
+              scheduleMap.value = mapping;
+            }, (err) => {
+              console.error("排班監聽錯誤:", err);
+              showToast("排班日程同步錯誤", "error");
+            });
+
+            // 監聽規則設定
+            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), (docSnap) => {
+              if (docSnap.exists()) {
+                settings.value = {
+                  skipWeekends: true,
+                  skipHolidays: true,
+                  ...docSnap.data()
+                };
+              }
+            }, (err) => {
+              console.error("設定監聽錯誤:", err);
+            });
+
+          } catch (error) {
+            console.error("Firebase 連線初始化失敗:", error);
+            connectionState.value = 'error';
+            showToast("無法與雲端資料庫連線", "error");
+          }
+        });
+
+        // --- 計算屬性 ---
+        const syncStatusText = computed(() => {
+          if (connectionState.value === 'connecting') return '正在連線至雲端同步庫...';
+          if (connectionState.value === 'connected') return '已成功連線雲端 (多人協同中)';
+          return '雲端連線失敗，請檢查網路';
+        });
+
+        const syncStatusClass = computed(() => {
+          if (connectionState.value === 'connecting') return 'bg-amber-400 animate-pulse';
+          if (connectionState.value === 'connected') return 'bg-emerald-500';
+          return 'bg-rose-500 animate-bounce';
+        });
+
+        // 依編號排序員工
+        const sortedEmployees = computed(() => {
+          return [...employees.value].sort((a, b) => {
+            return String(a.code).localeCompare(String(b.code), undefined, {numeric: true, sensitivity: 'base'});
+          });
+        });
+
+        // 依日期排序自訂補休
+        const sortedCustomEvents = computed(() => {
+          const sorted = {};
+          Object.keys(customEvents.value).sort().forEach(key => {
+            sorted[key] = customEvents.value[key];
+          });
+          return sorted;
+        });
+
+        // 產生月曆的展示前導空格
+        const calendarPrePadding = computed(() => {
+          const firstDayIndex = new Date(currentYear.value, currentMonth.value, 1).getDay(); // 0(日) 到 6(六)
+          return firstDayIndex;
+        });
+
+        // 產生月曆的展示單元
+        const calendarDays = computed(() => {
+          const daysInMonth = new Date(currentYear.value, currentMonth.value + 1, 0).getDate();
+          const list = [];
+          
+          const todayObj = new Date();
+          const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+
+          for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(currentYear.value, currentMonth.value, d);
+            const yyyy = dateObj.getFullYear();
+            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const dd = String(dateObj.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}-${mm}-${dd}`;
+            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+            const holidayName = TAIWAN_HOLIDAYS[dateStr] || null;
+            
+            // 新增自訂補休放假偵測
+            const isCustomHoliday = !!customEvents.value[dateStr];
+            const customHolidayName = customEvents.value[dateStr] || null;
+
+            const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+            const weekDayName = `週${weekDays[dateObj.getDay()]}`;
+
+            // 對應排班狀態
+            let assigned = null;
+            if (scheduleMap.value[dateStr]) {
+              const sched = scheduleMap.value[dateStr];
+              const emp = employees.value.find(e => e.id === sched.employeeId);
+              if (emp) {
+                assigned = {
+                  id: emp.id,
+                  code: emp.code,
+                  name: emp.name,
+                  isSwapped: sched.isSwapped || false
+                };
+              } else if (sched.employeeId) {
+                assigned = {
+                  id: 'deleted',
+                  code: '--',
+                  name: '未知員工',
+                  isSwapped: sched.isSwapped || false
+                };
+              }
+            }
+
+            list.push({
+              dayNum: d,
+              dateStr,
+              isToday: dateStr === todayStr,
+              isWeekend,
+              isHoliday: !!holidayName,
+              holidayName,
+              isCustomHoliday,
+              customHolidayName,
+              weekDayName,
+              assigned
+            });
+          }
+          return list;
+        });
+
+        // --- 資料庫操作行為 ---
+
+        // 儲存規則設定到雲端
+        const saveSettings = async () => {
+          try {
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), settings.value);
+            showToast("排班規則更新成功！");
+          } catch (e) {
+            console.error("更新設定失敗:", e);
+            showToast("無法更新排班設定", "error");
+          }
+        };
+
+        // 新增員工（並自動觸發智慧後續重排列）
+        const addEmployee = async () => {
+          if (!newEmpCode.value.trim() || !newEmpName.value.trim()) return;
+          submitting.value = true;
+          
+          const code = newEmpCode.value.trim().padStart(2, '0');
+          const name = newEmpName.value.trim();
+          
+          if (employees.value.some(e => e.code === code)) {
+            showToast(`員工編號 ${code} 已存在，請重新設定！`, 'error');
+            submitting.value = false;
+            return;
+          }
+
+          try {
+            const newDocRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'employees'));
+            await setDoc(newDocRef, { code, name });
+            showToast(`新增員工 [${code}] ${name} 成功！`);
+            
+            newEmpCode.value = '';
+            newEmpName.value = '';
+
+            // 智慧對齊未來排班
+            setTimeout(() => {
+              const todayStr = getTodayStr();
+              autoAlignFutureSchedule(todayStr);
+            }, 500);
+
+          } catch (e) {
+            console.error("新增員工錯誤:", e);
+            showToast("雲端儲存失敗", "error");
+          } finally {
+            submitting.value = false;
+          }
+        };
+
+        // 刪除員工確認 (無 alert / confirm)
+        const confirmDeleteEmployee = (emp) => {
+          openConfirm(
+            "確定要刪除員工嗎？",
+            `這將清空同仁 [${emp.code}] ${emp.name} 在未來的所有的值日安排，並智慧遞補其排班。`,
+            () => removeEmployee(emp.id)
+          );
+        };
+
+        // 刪除員工本體行為
+        const removeEmployee = async (id) => {
+          try {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'employees', id));
+            showToast("員工已刪除");
+            
+            const todayStr = getTodayStr();
+            autoAlignFutureSchedule(todayStr);
+          } catch (e) {
+            console.error("刪除失敗:", e);
+            showToast("刪除失敗", "error");
+          }
+        };
+
+        // --- 公司自訂補休與放假事件管理 (符合需求與補休智慧順延) ---
+        const addCustomEvent = async () => {
+          if (!newEventDate.value || !newEventTitle.value.trim()) return;
+          
+          const dateStr = newEventDate.value;
+          const title = newEventTitle.value.trim();
+
+          try {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'events', dateStr);
+            await setDoc(docRef, { title });
+            showToast(`已新增公司自訂補休假：${dateStr} (${title})`, "purple");
+
+            newEventDate.value = '';
+            newEventTitle.value = '';
+
+            // 新增補休假後，自動重新校正對齊此日期以後的排班，原班自動往後順延
+            setTimeout(() => {
+              autoAlignFutureSchedule(dateStr);
+            }, 500);
+
+          } catch (e) {
+            console.error("自訂事件新增錯誤:", e);
+            showToast("雲端儲存事件失敗", "error");
+          }
+        };
+
+        // 刪除補休確認
+        const confirmDeleteCustomEvent = (dateStr) => {
+          openConfirm(
+            "確定要刪除此自訂補休嗎？",
+            `刪除後，${dateStr} 平日將重新恢復值日生排班。`,
+            () => deleteCustomEvent(dateStr)
+          );
+        };
+
+        // 刪除補休假
+        const deleteCustomEvent = async (dateStr) => {
+          try {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'events', dateStr));
+            showToast(`已取消補休放假：${dateStr}`);
+
+            // 恢復排班，重新智慧對齊
+            setTimeout(() => {
+              autoAlignFutureSchedule(dateStr);
+            }, 500);
+          } catch (e) {
+            console.error("自訂事件刪除錯誤:", e);
+            showToast("刪除自訂事件失敗", "error");
+          }
+        };
+
+        // --- 核心演算法：智慧自動順序排班 (包含國定假日、週末、自訂補休跳過並順延) ---
+        const autoAlignFutureSchedule = async (startDateStr) => {
+          if (sortedEmployees.value.length === 0) return;
+
+          showToast("正在智慧對齊未來排班順序...", "info");
+
+          // 1. 搜尋 startDateStr 前一天(或前幾天)最後排定且有效的員工
+          let lastEmployeeId = null;
+          let searchDate = new Date(startDateStr);
+          
+          for (let i = 0; i < 30; i++) {
+            searchDate.setDate(searchDate.getDate() - 1);
+            const dateStr = formatDate(searchDate);
+            const histRecord = scheduleMap.value[dateStr];
+            if (histRecord && histRecord.employeeId) {
+              if (sortedEmployees.value.some(e => e.id === histRecord.employeeId)) {
+                lastEmployeeId = histRecord.employeeId;
+                break;
+              }
+            }
+          }
+
+          // 2. 決定起算指標 index
+          let empIndex = -1;
+          if (lastEmployeeId) {
+            empIndex = sortedEmployees.value.findIndex(e => e.id === lastEmployeeId);
+          }
+
+          // 3. 往後進行排程填充
+          const batch = writeBatch(db);
+          let currentPointer = new Date(startDateStr);
+          
+          // 計算 45 天的未來排班
+          for (let d = 0; d < 45; d++) {
+            const dateStr = formatDate(currentPointer);
+            const isWeekend = currentPointer.getDay() === 0 || currentPointer.getDay() === 6;
+            const isHoliday = !!TAIWAN_HOLIDAYS[dateStr];
+            const isCustomHoliday = !!customEvents.value[dateStr]; // 抓取自訂補休
+
+            // 智慧跳過邏輯：週末、國定假日或自訂公司補休
+            const shouldSkip = (isWeekend && settings.value.skipWeekends) || 
+                               (isHoliday && settings.value.skipHolidays) || 
+                               isCustomHoliday;
+
+            if (shouldSkip) {
+              // 排除日：如果這天已有一般排班，予以移除，且「不推進」指標（值日生排班自動往後延一天）
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+              batch.delete(docRef);
+            } else {
+              // 工作日：如果是手動改班，我們保留手動對調內容，但「排班序列指標」依然在背景按規律推進！
+              empIndex = (empIndex + 1) % sortedEmployees.value.length;
+              const nextEmp = sortedEmployees.value[empIndex];
+
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+              const existing = scheduleMap.value[dateStr];
+
+              if (existing && existing.isSwapped) {
+                batch.update(docRef, {
+                  originalEmployeeId: nextEmp.id
+                });
+              } else {
+                batch.set(docRef, {
+                  employeeId: nextEmp.id,
+                  originalEmployeeId: nextEmp.id,
+                  isSwapped: false
+                });
+              }
+            }
+            currentPointer.setDate(currentPointer.getDate() + 1);
+          }
+
+          try {
+            await batch.commit();
+            showToast("智慧排班對齊成功！");
+          } catch (err) {
+            console.error("智慧對齊批次寫入錯誤:", err);
+            showToast("無法同步自動排序", "error");
+          }
+        };
+
+        // 一鍵自動排程模態框
+        const openQuickScheduleModal = () => {
+          quickRosterStart.value = getTodayStr();
+          showQuickScheduleModal.value = true;
+        };
+
+        const executeQuickRoster = async () => {
+          if (sortedEmployees.value.length === 0) {
+            showToast("名單內尚無員工，無法排班！", "error");
+            return;
+          }
+
+          showQuickScheduleModal.value = false;
+          showToast("開始排程作業中...", "info");
+
+          if (clearAllOverrides.value) {
+            const batch = writeBatch(db);
+            Object.keys(scheduleMap.value).forEach(dateStr => {
+              if (dateStr >= quickRosterStart.value) {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+                batch.delete(docRef);
+              }
+            });
+            await batch.commit();
+          }
+
+          let empIndex = -1;
+          if (quickRosterEmpId.value) {
+            empIndex = sortedEmployees.value.findIndex(e => e.id === quickRosterEmpId.value) - 1;
+          }
+
+          const batch = writeBatch(db);
+          let currentPointer = new Date(quickRosterStart.value);
+
+          for (let d = 0; d < 45; d++) {
+            const dateStr = formatDate(currentPointer);
+            const isWeekend = currentPointer.getDay() === 0 || currentPointer.getDay() === 6;
+            const isHoliday = !!TAIWAN_HOLIDAYS[dateStr];
+            const isCustomHoliday = !!customEvents.value[dateStr];
+
+            const shouldSkip = (isWeekend && settings.value.skipWeekends) || 
+                               (isHoliday && settings.value.skipHolidays) || 
+                               isCustomHoliday;
+
+            if (shouldSkip) {
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+              batch.delete(docRef);
+            } else {
+              empIndex = (empIndex + 1) % sortedEmployees.value.length;
+              const nextEmp = sortedEmployees.value[empIndex];
+
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+              const existing = scheduleMap.value[dateStr];
+
+              if (!clearAllOverrides.value && existing && existing.isSwapped) {
+                batch.update(docRef, {
+                  originalEmployeeId: nextEmp.id
+                });
+              } else {
+                batch.set(docRef, {
+                  employeeId: nextEmp.id,
+                  originalEmployeeId: nextEmp.id,
+                  isSwapped: false
+                });
+              }
+            }
+            currentPointer.setDate(currentPointer.getDate() + 1);
+          }
+
+          try {
+            await batch.commit();
+            showToast("一鍵自動排班完成！");
+          } catch (err) {
+            console.error("一鍵排班錯誤:", err);
+            showToast("排班寫入失敗", "error");
+          }
+        };
+
+        // --- 拖拽調班與點選調班 (符合需求三) ---
+
+        // HTML5 Drag Start
+        const onDragStart = (event, dateStr) => {
+          dragSourceDate.value = dateStr;
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', dateStr);
+        };
+
+        // HTML5 Drag Over
+        const onDragOver = (event) => {
+          event.dataTransfer.dropEffect = 'move';
+        };
+
+        // HTML5 Drop
+        const onDrop = async (event, targetDateStr) => {
+          const sourceDateStr = event.dataTransfer.getData('text/plain') || dragSourceDate.value;
+          if (!sourceDateStr || sourceDateStr === targetDateStr) return;
+
+          await executeSwap(sourceDateStr, targetDateStr);
+          dragSourceDate.value = null;
+        };
+
+        // 點選調班（行動端最佳方案）
+        const handleCardClick = async (dateStr) => {
+          if (!selectedSwapDate.value) {
+            selectedSwapDate.value = dateStr;
+            showToast("已選擇起點卡片，點選另一天即可對調！");
+          } else {
+            const firstDate = selectedSwapDate.value;
+            selectedSwapDate.value = null;
+
+            if (firstDate === dateStr) return;
+            await executeSwap(firstDate, dateStr);
+          }
+        };
+
+        // 執行對調核心
+        const executeSwap = async (dateA, dateB) => {
+          const dutyA = scheduleMap.value[dateA];
+          const dutyB = scheduleMap.value[dateB];
+
+          const empIdA = dutyA ? dutyA.employeeId : null;
+          const empIdB = dutyB ? dutyB.employeeId : null;
+
+          if (!empIdA && !empIdB) return;
+
+          showToast(`正在調換值日生: ${dateA} ⇄ ${dateB}`, "info");
+
+          try {
+            const batch = writeBatch(db);
+            const refA = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateA);
+            const refB = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateB);
+
+            // 交換寫入 A
+            batch.set(refA, {
+              employeeId: empIdB,
+              originalEmployeeId: dutyA?.originalEmployeeId || empIdA,
+              isSwapped: true
+            }, { merge: true });
+
+            // 交換寫入 B
+            batch.set(refB, {
+              employeeId: empIdA,
+              originalEmployeeId: dutyB?.originalEmployeeId || empIdB,
+              isSwapped: true
+            }, { merge: true });
+
+            await batch.commit();
+            showToast("兩天值日生調換對調成功！卡片已亮色標記。");
+          } catch (e) {
+            console.error("互換失敗:", e);
+            showToast("調班儲存失敗", "error");
+          }
+        };
+
+        // 還原調班至系統原排班
+        const resetDuty = async (dateStr) => {
+          const duty = scheduleMap.value[dateStr];
+          if (!duty) return;
+
+          try {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+            if (duty.originalEmployeeId) {
+              await updateDoc(docRef, {
+                employeeId: duty.originalEmployeeId,
+                isSwapped: false
+              });
+            } else {
+              await deleteDoc(docRef);
+            }
+            showToast(`${dateStr} 已還原至原本值日生！`);
+          } catch (e) {
+            console.error("還原失敗:", e);
+            showToast("還原失敗", "error");
+          }
+        };
+
+        // 手動快速指派
+        const quickAssign = (dateStr) => {
+          openSingleDateEdit({ dateStr, assigned: null });
+        };
+
+        const openSingleDateEdit = (day) => {
+          singleEditDate.value = day.dateStr;
+          singleEditEmpId.value = day.assigned ? day.assigned.id : '';
+          showSingleEditModal.value = true;
+        };
+
+        const saveSingleDuty = async () => {
+          showSingleEditModal.value = false;
+          if (!singleEditEmpId.value) {
+            try {
+              await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schedule', singleEditDate.value));
+              showToast("已取消該日值日生安排");
+            } catch (e) {
+              showToast("儲存失敗", "error");
+            }
+            return;
+          }
+
+          try {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', singleEditDate.value);
+            const current = scheduleMap.value[singleEditDate.value];
+            
+            await setDoc(docRef, {
+              employeeId: singleEditEmpId.value,
+              originalEmployeeId: current?.originalEmployeeId || current?.employeeId || singleEditEmpId.value,
+              isSwapped: true
+            }, { merge: true });
+
+            showToast(`已手動指派值日生於 ${singleEditDate.value}`);
+          } catch (e) {
+            console.error("手動更換失敗:", e);
+            showToast("手動指派失敗", "error");
+          }
+        };
+
+        // --- 輔助日期方法 ---
+        const changeMonth = (offset) => {
+          let newMonth = currentMonth.value + offset;
+          let newYear = currentYear.value;
+          if (newMonth < 0) {
+            newMonth = 11;
+            newYear--;
+          } else if (newMonth > 11) {
+            newMonth = 0;
+            newYear++;
+          }
+          currentMonth.value = newMonth;
+          currentYear.value = newYear;
+        };
+
+        const goToToday = () => {
+          const d = new Date();
+          currentYear.value = d.getFullYear();
+          currentMonth.value = d.getMonth();
+        };
+
+        const getTodayStr = () => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+
+        const formatDate = (dateObj) => {
+          return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+        };
+
+        return {
+          employees,
+          scheduleMap,
+          customEvents,
+          settings,
+          currentYear,
+          currentMonth,
+          viewMode,
+          newEmpCode,
+          newEmpName,
+          newEventDate,
+          newEventTitle,
+          submitting,
+          toasts,
+          selectedSwapDate,
+          confirmModal,
+          
+          showQuickScheduleModal,
+          showSingleEditModal,
+          showInfoModal,
+          quickRosterStart,
+          quickRosterEmpId,
+          clearAllOverrides,
+          singleEditDate,
+          singleEditEmpId,
+
+          syncStatusText,
+          syncStatusClass,
+          sortedEmployees,
+          sortedCustomEvents,
+          calendarPrePadding,
+          calendarDays,
+
+          addEmployee,
+          confirmDeleteEmployee,
+          addCustomEvent,
+          confirmDeleteCustomEvent,
+          saveSettings,
+          changeMonth,
+          goToToday,
+          openQuickScheduleModal,
+          executeQuickRoster,
+          quickAssign,
+          openSingleDateEdit,
+          saveSingleDuty,
+          resetDuty,
+          removeToast,
+          triggerConfirmAction,
+
+          onDragStart,
+          onDragOver,
+          onDrop,
+          handleCardClick
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

@@ -29,15 +29,12 @@
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
       background: #94a3b8;
     }
-    /* 條紋背景用於非工作日 */
     .stripes-bg {
       background-image: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 10px, #f1f5f9 10px, #f1f5f9 20px);
     }
-    /* 國定假日專用淡紅條紋背景 */
     .holiday-stripes-bg {
       background-image: repeating-linear-gradient(45deg, #fff5f5, #fff5f5 10px, #ffe4e6 10px, #ffe4e6 20px);
     }
-    /* 公司自訂補休/放假專用淡紫條紋背景 */
     .custom-holiday-stripes-bg {
       background-image: repeating-linear-gradient(45deg, #f5f3ff, #f5f3ff 10px, #ede9fe 10px, #ede9fe 20px);
     }
@@ -496,14 +493,13 @@
           <p class="pl-3 border-l-2 border-indigo-200">若有週末活動而平日需要補休，可在左側新增自訂補休。系統會自動跳過該補休天，且<b>排班值日生順序自動往後順延一天</b>，完全不影響原訂的同仁公平性。</p>
 
           <p class="font-bold text-slate-800">3. 新增員工與插補</p>
-          <p class="pl-3 border-l-2 border-indigo-200">系統會依照「員工編號」由小到大循環排班。新增 `09` 員工時，系統偵測到前一日是 `07`，則會自動安排 `09` 在下一值日天上班，之後自動接續為 `01`，保證排班不紊亂。
-          </p>
+          <p class="pl-3 border-l-2 border-indigo-200">系統會依照「員工編號」由小到大循環排班。新增 `09` 員工時，系統偵測到前一日是 `07`，則會自動安排 `09` 在下一值日天上班，之後自動接續為 `01`，保證排班不紊亂。</p>
 
           <p class="font-bold text-slate-800">4. 拖拽調班與手機操作</p>
           <p class="pl-3 border-l-2 border-indigo-200">
-            <strong>電腦拖拽：</strong>按住日期卡片，拖曳至另一天放下，兩日的值日生便會互換。
-            <br><strong>手機點擊：</strong>點選要請假的卡片 (呈現藍色外框)，再點選預備交換日期的卡片，即完成調班。
-            <br>調班後的日期，卡片自動變成暖橘色並標示「已調班」。
+            <strong>電腦拖拽：</strong>按住日期卡片，拖曳至另一天放下，兩日的值日生便會互換。<br>
+            <strong>手機點擊：</strong>點選要請假的卡片 (呈現藍色外框)，再點選預備交換日期的卡片，即完成調班。<br>
+            調班後的日期，卡片自動變成暖橘色並標示「已調班」。
           </p>
         </div>
 
@@ -544,9 +540,6 @@
              class="p-4 rounded-xl shadow-lg text-sm flex items-center gap-3 min-w-[250px] max-w-sm">
           <i :class="toast.type === 'error' ? 'fa-solid fa-triangle-exclamation text-rose-200' : 'fa-solid fa-circle-check text-indigo-300'"></i>
           <span class="flex-1 font-medium">{{ toast.message }}</span>
-          <button v-if="toast.canUndo" @click="undoLastAction" class="px-2 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg transition underline flex items-center gap-1">
-            <i class="fa-solid fa-rotate-left"></i> 復原
-          </button>
           <button @click="removeToast(toast.id)" class="text-white/60 hover:text-white">
             <i class="fa-solid fa-xmark"></i>
           </button>
@@ -560,56 +553,23 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getFirestore, doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, collection, query, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // 國定假日對照表 (見紅就休)
     const TAIWAN_HOLIDAYS = {
-      // 2026 國定假日與連假補假
-      "2026-01-01": "元旦",
-      "2026-02-14": "春節連假",
-      "2026-02-15": "春節連假(小年夜)",
-      "2026-02-16": "除夕",
-      "2026-02-17": "初一",
-      "2026-02-18": "初二",
-      "2026-02-19": "初三",
-      "2026-02-20": "初四",
-      "2026-02-21": "初五",
-      "2026-02-22": "春節連假",
-      "2026-02-27": "和平紀念日補假",
-      "2026-02-28": "和平紀念日",
-      "2026-03-01": "和平紀念日放假",
-      "2026-04-03": "兒童節補假",
-      "2026-04-04": "兒童節",
-      "2026-04-05": "清明節",
-      "2026-04-06": "清明節補假",
-      "2026-05-01": "勞動節",
-      "2026-06-19": "端午節",
-      "2026-06-20": "端午節假期",
-      "2026-06-21": "端午節假期",
-      "2026-09-25": "中秋節",
-      "2026-09-26": "中秋節假期",
-      "2026-09-27": "中秋節假期",
-      "2026-09-28": "教師節",
-      "2026-10-09": "國慶日補假",
-      "2026-10-10": "國慶日",
-      "2026-10-11": "國慶日假期",
-      "2026-10-24": "光復節假期",
-      "2026-10-25": "光復節",
-      "2026-10-26": "光復節補假",
-      "2026-12-25": "行憲紀念日",
-      "2026-12-26": "行憲紀念日假期",
-      "2026-12-27": "行憲紀念日假期",
+      "2026-01-01": "元旦", "2026-02-14": "春節連假", "2026-02-15": "春節連假(小年夜)", "2026-02-16": "除夕",
+      "2026-02-17": "初一", "2026-02-18": "初二", "2026-02-19": "初三", "2026-02-20": "初四",
+      "2026-02-21": "初五", "2026-02-22": "春節連假", "2026-02-27": "和平紀念日補假", "2026-02-28": "和平紀念日",
+      "2026-03-01": "和平紀念日放假", "2026-04-03": "兒童節補假", "2026-04-04": "兒童節", "2026-04-05": "清明節",
+      "2026-04-06": "清明節補假", "2026-05-01": "勞動節", "2026-06-19": "端午節", "2026-06-20": "端午節假期",
+      "2026-06-21": "端午節假期", "2026-09-25": "中秋節", "2026-09-26": "中秋節假期", "2026-09-27": "中秋節假期",
+      "2026-09-28": "教師節", "2026-10-09": "國慶日補假", "2026-10-10": "國慶日", "2026-10-11": "國慶日假期",
+      "2026-10-24": "光復節假期", "2026-10-25": "光復節", "2026-10-26": "光復節補假", "2026-12-25": "行憲紀念日",
+      "2026-12-26": "行憲紀念日假期", "2026-12-27": "行憲紀念日假期",
 
-      // 2025 年國定假日
-      "2025-01-01": "元旦",
-      "2025-01-25": "春節連假", "2025-01-26": "春節連假", "2025-01-27": "春節除夕前天", "2025-01-28": "除夕",
-      "2025-01-29": "初一", "2025-01-30": "初二", "2025-01-31": "初三", "2025-02-01": "初四", "2025-02-02": "初五",
-      "2025-02-28": "和平紀念日",
-      "2025-04-03": "兒童節補假", "2025-04-04": "兒童節", "2025-04-05": "清明節", "2025-04-07": "清明節補假",
-      "2025-05-01": "勞動節",
-      "2025-05-31": "端午節",
-      "2025-10-06": "中秋節",
-      "2025-10-10": "國慶日",
-      "2025-10-24": "光復節補假", "2025-10-25": "光復節",
-      "2025-12-25": "行憲紀念日"
+      "2025-01-01": "元旦", "2025-01-25": "春節連假", "2025-01-26": "春節連假", "2025-01-27": "春節除夕前天",
+      "2025-01-28": "除夕", "2025-01-29": "初一", "2025-01-30": "初二", "2025-01-31": "初三",
+      "2025-02-01": "初四", "2025-02-02": "初五", "2025-02-28": "和平紀念日", "2025-04-03": "兒童節補假",
+      "2025-04-04": "兒童節", "2025-04-05": "清明節", "2025-04-07": "清明節補假", "2025-05-01": "勞動節",
+      "2025-05-31": "端午節", "2025-10-06": "中秋節", "2025-10-10": "國慶日", "2025-10-24": "光復節補假",
+      "2025-10-25": "光復節", "2025-12-25": "行憲紀念日"
     };
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'duty-roster-company-v1';
@@ -623,11 +583,9 @@
       appId: "1:906539079147:web:f01df0ef4f4fc818c375ae"
     };
 
-    // 初始化 Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Vue3 應用
     const { createApp, ref, computed, onMounted } = Vue;
 
     createApp({
@@ -637,7 +595,6 @@
         const customEvents = ref({});
         const settings = ref({ skipWeekends: true, skipHolidays: true });
         
-        // 操作歷史堆疊 (Undo stack)
         const undoStack = ref([]);
 
         const currentYear = ref(new Date().getFullYear());
@@ -648,28 +605,25 @@
         const newEmpName = ref('');
         const newEventDate = ref('');
         const newEventTitle = ref('');
-        
+
         const submitting = ref(false);
         const connectionState = ref('connecting');
         const toasts = ref([]);
 
-        // 拖拽與選取調班
         const dragSourceDate = ref(null);
         const selectedSwapDate = ref(null);
 
-        // 模態框狀態
         const showQuickScheduleModal = ref(false);
         const showSingleEditModal = ref(false);
         const showInfoModal = ref(false);
 
-        // 統一自訂確認對話框
         const confirmModal = ref({
           show: false,
           title: '',
           message: '',
           action: null
         });
-        
+
         const quickRosterStart = ref(new Date().toISOString().split('T')[0]);
         const quickRosterEmpId = ref('');
         const clearAllOverrides = ref(false);
@@ -677,11 +631,10 @@
         const singleEditDate = ref('');
         const singleEditEmpId = ref('');
 
-        // --- Toast 管理 ---
-        const showToast = (message, type = 'info', canUndo = false) => {
+        const showToast = (message, type = 'info') => {
           const id = Date.now() + Math.random();
-          toasts.value.push({ id, message, type, canUndo });
-          setTimeout(() => removeToast(id), 5000);
+          toasts.value.push({ id, message, type });
+          setTimeout(() => removeToast(id), 4000);
         };
 
         const removeToast = (id) => {
@@ -694,7 +647,6 @@
             description,
             revertFn
           });
-          // 最多保留最近 15 次操作紀錄
           if (undoStack.value.length > 15) {
             undoStack.value.shift();
           }
@@ -714,20 +666,223 @@
           }
         };
 
-        // 新增員工
-        // 刪除員工本體行為 (加入歷史快照固化機制 與 復原堆疊)
+        const openConfirm = (title, message, action) => {
+          confirmModal.value = { show: true, title, message, action };
+        };
+
+        const triggerConfirmAction = () => {
+          if (confirmModal.value.action) {
+            confirmModal.value.action();
+          }
+          confirmModal.value.show = false;
+        };
+
+        onMounted(async () => {
+          try {
+            connectionState.value = 'connecting';
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'employees'), (snapshot) => {
+              employees.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              connectionState.value = 'connected';
+            }, (err) => {
+              console.error("員工監聽錯誤:", err);
+              connectionState.value = 'error';
+              showToast("員工清單同步錯誤", "error");
+            });
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'events'), (snapshot) => {
+              const mapping = {};
+              snapshot.docs.forEach(doc => { mapping[doc.id] = doc.data().title; });
+              customEvents.value = mapping;
+            }, (err) => {
+              console.error("自訂事件監聽錯誤:", err);
+            });
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'schedule'), (snapshot) => {
+              const mapping = {};
+              snapshot.docs.forEach(doc => { mapping[doc.id] = doc.data(); });
+              scheduleMap.value = mapping;
+            }, (err) => {
+              console.error("排班監聽錯誤:", err);
+            });
+
+            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), (docSnap) => {
+              if (docSnap.exists()) {
+                settings.value = { skipWeekends: true, skipHolidays: true, ...docSnap.data() };
+              }
+            });
+
+          } catch (error) {
+            console.error("Firebase 連線初始化失敗:", error);
+            connectionState.value = 'error';
+            showToast("無法與雲端資料庫連線", "error");
+          }
+        });
+
+        const syncStatusText = computed(() => {
+          if (connectionState.value === 'connecting') return '正在連線至雲端同步庫...';
+          if (connectionState.value === 'connected') return '已成功連線雲端 (多人協同中)';
+          return '雲端連線失敗，請檢查網路';
+        });
+
+        const syncStatusClass = computed(() => {
+          if (connectionState.value === 'connecting') return 'bg-amber-400 animate-pulse';
+          if (connectionState.value === 'connected') return 'bg-emerald-500';
+          return 'bg-rose-500 animate-bounce';
+        });
+
+        const sortedEmployees = computed(() => {
+          return [...employees.value].sort((a, b) => {
+            return String(a.code).localeCompare(String(b.code), undefined, {numeric: true, sensitivity: 'base'});
+          });
+        });
+
+        const sortedCustomEvents = computed(() => {
+          const sorted = {};
+          Object.keys(customEvents.value).sort().forEach(key => {
+            sorted[key] = customEvents.value[key];
+          });
+          return sorted;
+        });
+
+        const calendarPrePadding = computed(() => {
+          return new Date(currentYear.value, currentMonth.value, 1).getDay();
+        });
+
+        const calendarDays = computed(() => {
+          const daysInMonth = new Date(currentYear.value, currentMonth.value + 1, 0).getDate();
+          const list = [];
+          
+          const todayObj = new Date();
+          const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+
+          for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(currentYear.value, currentMonth.value, d);
+            const yyyy = dateObj.getFullYear();
+            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const dd = String(dateObj.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}-${mm}-${dd}`;
+            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+            const holidayName = TAIWAN_HOLIDAYS[dateStr] || null;
+            
+            const isCustomHoliday = !!customEvents.value[dateStr];
+            const customHolidayName = customEvents.value[dateStr] || null;
+
+            const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+            const weekDayName = `週${weekDays[dateObj.getDay()]}`;
+
+            let assigned = null;
+            if (scheduleMap.value[dateStr]) {
+              const sched = scheduleMap.value[dateStr];
+              const emp = employees.value.find(e => e.id === sched.employeeId);
+              
+              if (emp) {
+                assigned = {
+                  id: emp.id,
+                  code: emp.code,
+                  name: emp.name,
+                  isSwapped: sched.isSwapped || false,
+                  isArchived: false
+                };
+              } else if (sched.employeeName || sched.employeeCode) {
+                assigned = {
+                  id: sched.employeeId || 'archived',
+                  code: sched.employeeCode || '--',
+                  name: sched.employeeName,
+                  isSwapped: sched.isSwapped || false,
+                  isArchived: true
+                };
+              } else if (sched.employeeId) {
+                assigned = {
+                  id: 'deleted',
+                  code: '--',
+                  name: '歷史值日生',
+                  isSwapped: sched.isSwapped || false,
+                  isArchived: true
+                };
+              }
+            }
+
+            list.push({
+              dayNum: d,
+              dateStr,
+              isToday: dateStr === todayStr,
+              isWeekend,
+              isHoliday: !!holidayName,
+              holidayName,
+              isCustomHoliday,
+              customHolidayName,
+              weekDayName,
+              assigned
+            });
+          }
+          return list;
+        });
+
+        const saveSettings = async () => {
+          try {
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), settings.value);
+            showToast("排班規則更新成功！");
+          } catch (e) {
+            showToast("無法更新排班設定", "error");
+          }
+        };
+
+        const addEmployee = async () => {
+          if (!newEmpCode.value.trim() || !newEmpName.value.trim()) return;
+          submitting.value = true;
+          
+          const code = newEmpCode.value.trim().padStart(2, '0');
+          const name = newEmpName.value.trim();
+          
+          if (employees.value.some(e => e.code === code)) {
+            showToast(`員工編號 ${code} 已存在，請重新設定！`, 'error');
+            submitting.value = false;
+            return;
+          }
+
+          try {
+            const newDocRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'employees'));
+            await setDoc(newDocRef, { code, name });
+
+            pushUndoAction(`新增員工 [${code}] ${name}`, async () => {
+              await deleteDoc(newDocRef);
+            });
+
+            showToast(`新增員工 [${code}] ${name} 成功！`);
+            newEmpCode.value = '';
+            newEmpName.value = '';
+
+            setTimeout(() => {
+              autoAlignFutureSchedule(getTodayStr());
+            }, 500);
+
+          } catch (e) {
+            console.error("新增員工錯誤:", e);
+            showToast("雲端儲存失敗", "error");
+          } finally {
+            submitting.value = false;
+          }
+        };
+
+        const confirmDeleteEmployee = (emp) => {
+          openConfirm(
+            "確定要移除此員工嗎？",
+            `將同仁 [${emp.code}] ${emp.name} 從名冊移除。系統將【完整保留過去的所有歷史值日紀錄】，僅從今天起重新排定未來的排班順序。`,
+            () => removeEmployee(emp)
+          );
+        };
+
         const removeEmployee = async (emp) => {
           try {
             const todayStr = getTodayStr();
             const batch = writeBatch(db);
 
-            // 備份刪除前相關的排班日程快照，供「復原上一步」還原
             const scheduleBackup = {};
             Object.keys(scheduleMap.value).forEach(dateStr => {
               scheduleBackup[dateStr] = { ...scheduleMap.value[dateStr] };
             });
 
-            // 1. 固化過去此員工的值日生紀錄快照，避免變成未知員工
             Object.keys(scheduleMap.value).forEach(dateStr => {
               const item = scheduleMap.value[dateStr];
               if (item && item.employeeId === emp.id) {
@@ -739,21 +894,17 @@
               }
             });
 
-            // 2. 從員工清單刪除
             const empDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'employees', emp.id);
             batch.delete(empDocRef);
 
             await batch.commit();
 
-            // 3. 壓入復原堆疊 (Undo Action)
             pushUndoAction(`移除員工 [${emp.code}] ${emp.name}`, async () => {
               const revertBatch = writeBatch(db);
               
-              // 重新把員工加回名冊
               const restoreEmpRef = doc(db, 'artifacts', appId, 'public', 'data', 'employees', emp.id);
               revertBatch.set(restoreEmpRef, { code: emp.code, name: emp.name });
 
-              // 還原原本的排班狀況
               Object.keys(scheduleBackup).forEach(dateStr => {
                 const b = scheduleBackup[dateStr];
                 const schedDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
@@ -763,9 +914,8 @@
               await revertBatch.commit();
             });
 
-            showToast(`已移除員工 [${emp.code}] ${emp.name}`, 'info', true);
+            showToast(`已移除員工 [${emp.code}] ${emp.name}`);
             
-            // 4. 僅從今天起重新計算未來排班
             setTimeout(() => {
               autoAlignFutureSchedule(todayStr);
             }, 500);
@@ -775,8 +925,240 @@
           }
         };
 
-        // 公司自訂補休與放假事件管理
-        // 執行對調核心 (附帶快照與復原)
+        const addCustomEvent = async () => {
+          if (!newEventDate.value || !newEventTitle.value.trim()) return;
+          
+          const dateStr = newEventDate.value;
+          const title = newEventTitle.value.trim();
+
+          try {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'events', dateStr);
+            await setDoc(docRef, { title });
+
+            pushUndoAction(`新增補休 [${dateStr}] ${title}`, async () => {
+              await deleteDoc(docRef);
+            });
+
+            showToast(`已新增公司自訂補休假：${dateStr} (${title})`, "purple");
+            newEventDate.value = '';
+            newEventTitle.value = '';
+
+            setTimeout(() => {
+              autoAlignFutureSchedule(dateStr);
+            }, 500);
+
+          } catch (e) {
+            showToast("雲端儲存事件失敗", "error");
+          }
+        };
+
+        const confirmDeleteCustomEvent = (dateStr) => {
+          openConfirm(
+            "確定要刪除此自訂補休嗎？",
+            `刪除後，${dateStr} 平日將重新恢復值日生排班。`,
+            () => deleteCustomEvent(dateStr)
+          );
+        };
+
+        const deleteCustomEvent = async (dateStr) => {
+          try {
+            const titleBackup = customEvents.value[dateStr];
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'events', dateStr);
+            await deleteDoc(docRef);
+
+            pushUndoAction(`刪除補休 [${dateStr}]`, async () => {
+              await setDoc(docRef, { title: titleBackup || '補休假' });
+            });
+
+            showToast(`已取消補休放假：${dateStr}`);
+
+            setTimeout(() => {
+              autoAlignFutureSchedule(dateStr);
+            }, 500);
+          } catch (e) {
+            showToast("刪除自訂事件失敗", "error");
+          }
+        };
+
+        const autoAlignFutureSchedule = async (startDateStr) => {
+          if (sortedEmployees.value.length === 0) return;
+
+          let lastEmployeeId = null;
+          let searchDate = new Date(startDateStr);
+          
+          for (let i = 0; i < 30; i++) {
+            searchDate.setDate(searchDate.getDate() - 1);
+            const dateStr = formatDate(searchDate);
+            const histRecord = scheduleMap.value[dateStr];
+            if (histRecord && histRecord.employeeId) {
+              if (sortedEmployees.value.some(e => e.id === histRecord.employeeId)) {
+                lastEmployeeId = histRecord.employeeId;
+                break;
+              }
+            }
+          }
+
+          let empIndex = -1;
+          if (lastEmployeeId) {
+            empIndex = sortedEmployees.value.findIndex(e => e.id === lastEmployeeId);
+          }
+
+          const batch = writeBatch(db);
+          let currentPointer = new Date(startDateStr);
+          
+          for (let d = 0; d < 45; d++) {
+            const dateStr = formatDate(currentPointer);
+            const isWeekend = currentPointer.getDay() === 0 || currentPointer.getDay() === 6;
+            const isHoliday = !!TAIWAN_HOLIDAYS[dateStr];
+            const isCustomHoliday = !!customEvents.value[dateStr];
+
+            const shouldSkip = (isWeekend && settings.value.skipWeekends) || 
+                               (isHoliday && settings.value.skipHolidays) || 
+                               isCustomHoliday;
+
+            if (shouldSkip) {
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+              batch.delete(docRef);
+            } else {
+              empIndex = (empIndex + 1) % sortedEmployees.value.length;
+              const nextEmp = sortedEmployees.value[empIndex];
+
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+              const existing = scheduleMap.value[dateStr];
+
+              if (existing && existing.isSwapped) {
+                batch.update(docRef, {
+                  originalEmployeeId: nextEmp.id
+                });
+              } else {
+                batch.set(docRef, {
+                  employeeId: nextEmp.id,
+                  employeeCode: nextEmp.code,
+                  employeeName: nextEmp.name,
+                  originalEmployeeId: nextEmp.id,
+                  isSwapped: false
+                });
+              }
+            }
+            currentPointer.setDate(currentPointer.getDate() + 1);
+          }
+
+          try {
+            await batch.commit();
+          } catch (err) {
+            console.error("智慧對齊批次寫入錯誤:", err);
+          }
+        };
+
+        const openQuickScheduleModal = () => {
+          quickRosterStart.value = getTodayStr();
+          showQuickScheduleModal.value = true;
+        };
+
+        const executeQuickRoster = async () => {
+          if (sortedEmployees.value.length === 0) {
+            showToast("名單內尚無在職員工，無法排班！", "error");
+            return;
+          }
+
+          showQuickScheduleModal.value = false;
+          showToast("開始排程作業中...", "info");
+
+          if (clearAllOverrides.value) {
+            const batch = writeBatch(db);
+            Object.keys(scheduleMap.value).forEach(dateStr => {
+              if (dateStr >= quickRosterStart.value) {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+                batch.delete(docRef);
+              }
+            });
+            await batch.commit();
+          }
+
+          let empIndex = -1;
+          if (quickRosterEmpId.value) {
+            empIndex = sortedEmployees.value.findIndex(e => e.id === quickRosterEmpId.value) - 1;
+          }
+
+          const batch = writeBatch(db);
+          let currentPointer = new Date(quickRosterStart.value);
+
+          for (let d = 0; d < 45; d++) {
+            const dateStr = formatDate(currentPointer);
+            const isWeekend = currentPointer.getDay() === 0 || currentPointer.getDay() === 6;
+            const isHoliday = !!TAIWAN_HOLIDAYS[dateStr];
+            const isCustomHoliday = !!customEvents.value[dateStr];
+
+            const shouldSkip = (isWeekend && settings.value.skipWeekends) || 
+                               (isHoliday && settings.value.skipHolidays) || 
+                               isCustomHoliday;
+
+            if (shouldSkip) {
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+              batch.delete(docRef);
+            } else {
+              empIndex = (empIndex + 1) % sortedEmployees.value.length;
+              const nextEmp = sortedEmployees.value[empIndex];
+
+              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateStr);
+              const existing = scheduleMap.value[dateStr];
+
+              if (!clearAllOverrides.value && existing && existing.isSwapped) {
+                batch.update(docRef, {
+                  originalEmployeeId: nextEmp.id
+                });
+              } else {
+                batch.set(docRef, {
+                  employeeId: nextEmp.id,
+                  employeeCode: nextEmp.code,
+                  employeeName: nextEmp.name,
+                  originalEmployeeId: nextEmp.id,
+                  isSwapped: false
+                });
+              }
+            }
+            currentPointer.setDate(currentPointer.getDate() + 1);
+          }
+
+          try {
+            await batch.commit();
+            showToast("一鍵自動排班完成！");
+          } catch (err) {
+            showToast("排班寫入失敗", "error");
+          }
+        };
+
+        const onDragStart = (event, dateStr) => {
+          dragSourceDate.value = dateStr;
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', dateStr);
+        };
+
+        const onDragOver = (event) => {
+          event.dataTransfer.dropEffect = 'move';
+        };
+
+        const onDrop = async (event, targetDateStr) => {
+          const sourceDateStr = event.dataTransfer.getData('text/plain') || dragSourceDate.value;
+          if (!sourceDateStr || sourceDateStr === targetDateStr) return;
+
+          await executeSwap(sourceDateStr, targetDateStr);
+          dragSourceDate.value = null;
+        };
+
+        const handleCardClick = async (dateStr) => {
+          if (!selectedSwapDate.value) {
+            selectedSwapDate.value = dateStr;
+            showToast("已選擇起點卡片，點選另一天即可對調！");
+          } else {
+            const firstDate = selectedSwapDate.value;
+            selectedSwapDate.value = null;
+
+            if (firstDate === dateStr) return;
+            await executeSwap(firstDate, dateStr);
+          }
+        };
+
         const executeSwap = async (dateA, dateB) => {
           const dutyA = scheduleMap.value[dateA] ? { ...scheduleMap.value[dateA] } : null;
           const dutyB = scheduleMap.value[dateB] ? { ...scheduleMap.value[dateB] } : null;
@@ -791,7 +1173,6 @@
             const refA = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateA);
             const refB = doc(db, 'artifacts', appId, 'public', 'data', 'schedule', dateB);
 
-            // 交換寫入 A (填入 B 的人員與快照)
             batch.set(refA, {
               employeeId: empB.id || null,
               employeeCode: empB.code || null,
@@ -800,7 +1181,6 @@
               isSwapped: true
             }, { merge: true });
 
-            // 交換寫入 B (填入 A 的人員與快照)
             batch.set(refB, {
               employeeId: empA.id || null,
               employeeCode: empA.code || null,
@@ -811,7 +1191,6 @@
 
             await batch.commit();
 
-            // 紀錄復原動作
             pushUndoAction(`對調 ${dateA} 與 ${dateB} 的值日生`, async () => {
               const undoBatch = writeBatch(db);
               if (dutyA) undoBatch.set(refA, dutyA); else undoBatch.delete(refA);
@@ -819,14 +1198,13 @@
               await undoBatch.commit();
             });
 
-            showToast("兩天值日生對調成功！", "info", true);
+            showToast("兩天值日生對調成功！");
           } catch (e) {
             console.error("互換失敗:", e);
             showToast("調班儲存失敗", "error");
           }
         };
 
-        // 還原調班至系統原排班
         const resetDuty = async (dateStr) => {
           const duty = scheduleMap.value[dateStr];
           if (!duty) return;
@@ -846,12 +1224,10 @@
             }
             showToast(`${dateStr} 已還原至原本值日生！`);
           } catch (e) {
-            console.error("還原失敗:", e);
             showToast("還原失敗", "error");
           }
         };
 
-        // 手動快速指派
         const quickAssign = (dateStr) => {
           openSingleDateEdit({ dateStr, assigned: null });
         };
@@ -890,12 +1266,10 @@
 
             showToast(`已手動指派值日生於 ${singleEditDate.value}`);
           } catch (e) {
-            console.error("手動更換失敗:", e);
             showToast("手動指派失敗", "error");
           }
         };
 
-        // 輔助日期方法
         const changeMonth = (offset) => {
           let newMonth = currentMonth.value + offset;
           let newYear = currentYear.value;
